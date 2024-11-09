@@ -1,5 +1,10 @@
-name: CI
-on: pull_request
+name: Go CI
+
+on:
+  workflow_run:
+    workflows: ["Trigger Main CI"]
+    types:
+      - completed
 
 jobs:
   golangci-lint:
