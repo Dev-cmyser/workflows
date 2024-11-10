@@ -1,0 +1,66 @@
+name: "Go CI Action"
+description: "Reusable GitHub Action to build, test, and lint Go projects"
+
+inputs:
+  go-version:
+    description: "Version of Go to use"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Check out code into the Go module directory
+    - name: Check out code
+      uses: actions/checkout@v3
+
+    # Step 2: Golangci-lint
+    - name: Run golangci-lint
+      uses: reviewdog/action-golangci-lint@v2
+
+    # Step 3: YAML linting
+    - name: Run yamllint
+      uses: reviewdog/action-yamllint@v1
+      with:
+        fail_on_error: true
+        reporter: github-pr-review
+        yamllint_flags: '-d "{extends: default, rules: {truthy: disable}}" .'
+
+    # Step 4: Hadolint (Dockerfile linting)
+    - name: Run hadolint
+      uses: reviewdog/action-hadolint@v1
+      with:
+        fail_on_error: true
+        reporter: github-pr-review
+
+    # Step 5: dotenv-linter
+    - name: Run dotenv-linter
+      uses: dotenv-linter/action-dotenv-linter@v2
+      with:
+        reporter: github-pr-review
+
+    # Step 6: Dependency Check
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Check Dependencies with Nancy
+      run: |
+        go list -json -m all > go.list && cat go.list | nancy --quiet
+      shell: bash
+      continue-on-error: true
+
+    # Step 7: Run Tests and Upload Coverage Report
+    - name: Run Unit Tests
+      run: |
+        go test \
+          -v \
+          -race \
+          -covermode atomic \
+          -coverprofile=coverage.txt \
+          ./...
+      shell: bash
+
+    - name: Upload coverage report
+      run: bash <(curl -s https://codecov.io/bash)
+      shell: bash
